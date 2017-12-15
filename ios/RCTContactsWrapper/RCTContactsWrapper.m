@@ -93,13 +93,13 @@ RCT_EXPORT_METHOD(getEmail:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseR
   self._reject(@"E_CONTACT_NO_EMAIL", @"No email found for contact", nil);
 }
 
--(void)emailPicked:(NSString *)email {
-  self._resolve(email);
+-(void)emailPicked:(NSArray *)emails {
+  self._resolve(emails);
 }
 
 
--(void)contactPicked:(NSDictionary *)contactData {
-  self._resolve(contactData);
+-(void)contactPicked:(NSArray *)contactsData {
+  self._resolve(contactsData);
 }
 
 
@@ -122,7 +122,7 @@ RCT_EXPORT_METHOD(getEmail:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseR
 
 
 #pragma mark - Event handlers - iOS 9+
-- (void)contactPicker:(CNContactPickerViewController *)picker didSelectContact:(CNContact *)contact {
+- (void)contactPicker:(CNContactPickerViewController *)picker didSelectContacts:(NSArray<CNContact *> *)contacts {
   switch(_requestCode){
     case REQUEST_CONTACT:
     {
@@ -130,48 +130,55 @@ RCT_EXPORT_METHOD(getEmail:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseR
        This is a starting point, in future more fields should be added, as required.
        This could also be extended to return arrays of phone numbers, email addresses etc. instead of jsut first found
        */
-      NSMutableDictionary *contactData = [self emptyContactDict];
-      
-      NSString *fullName = [self getFullNameForFirst:contact.givenName middle:contact.middleName last:contact.familyName ];
-      NSArray *phoneNos = contact.phoneNumbers;
-      NSArray *emailAddresses = contact.emailAddresses;
-      
-      //Return full name
-      [contactData setValue:fullName forKey:@"name"];
-      
-      //Return first phone number
-      if([phoneNos count] > 0) {
-        CNPhoneNumber *phone = ((CNLabeledValue *)phoneNos[0]).value;
-        [contactData setValue:phone.stringValue forKey:@"phone"];
+      NSMutableArray *contactsData = [[NSMutableArray alloc] init];
+      for (int i = 0; i < [contacts count]; i++) {
+        CNContact *contact = [contacts objectAtIndex:i];
+        NSMutableDictionary *contactData = [self emptyContactDict];
+
+        NSString *fullName = [self getFullNameForFirst:contact.givenName middle:contact.middleName last:contact.familyName ];
+        NSArray *phoneNos = contact.phoneNumbers;
+        NSArray *emailAddresses = contact.emailAddresses;
+
+        //Return full name
+        [contactData setValue:fullName forKey:@"name"];
+
+        //Return first phone number
+        if([phoneNos count] > 0) {
+          CNPhoneNumber *phone = ((CNLabeledValue *)phoneNos[0]).value;
+          [contactData setValue:phone.stringValue forKey:@"phone"];
+        }
+
+        //Return first email address
+        if([emailAddresses count] > 0) {
+          [contactData setValue:((CNLabeledValue *)emailAddresses[0]).value forKey:@"email"];
+        }
+        [contactsData addObject:contactData];
       }
-      
-      //Return first email address
-      if([emailAddresses count] > 0) {
-        [contactData setValue:((CNLabeledValue *)emailAddresses[0]).value forKey:@"email"];
-      }
-      
-      [self contactPicked:contactData];
+      [self contactPicked:contactsData];
     }
-      break;
+    break;
     case REQUEST_EMAIL :
     {
-      /* Return Only email address as string */
-      if([contact.emailAddresses count] < 1) {
-        [self pickerNoEmail];
-        return;
+      NSMutableArray *emailsData = [[NSMutableArray alloc] init];
+      for (int i = 0; i < [contacts count]; i++) {
+        CNContact *contact = [contacts objectAtIndex:i];
+        /* Return Only email address as string */
+        if([contact.emailAddresses count] < 1) {
+          [self pickerNoEmail];
+          return;
+        }
+
+        CNLabeledValue *email = contact.emailAddresses[0].value;
+        [emailsData addObject:email];
       }
-      
-      CNLabeledValue *email = contact.emailAddresses[0].value;
-      [self emailPicked:email];
+      [self emailPicked:emailsData];
     }
-      break;
+    break;
     default:
-      //Should never happen, but just in case, reject promise
-      [self pickerError];
+    //Should never happen, but just in case, reject promise
+    [self pickerError];
     break;
   }
-  
-  
 }
 
 
